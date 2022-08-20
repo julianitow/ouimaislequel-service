@@ -4,7 +4,8 @@
   "description": "Sample typsecript application",
   "main": "dist/app.js",
   "scripts": {
-    "start": "rimraf dist && tsc && node dist/app.js",
+    "build": "rimraf dist && tsc",
+    "start": "npm run build && node dist/app.js",
     "start:watch": "nodemon ."
   },
   "repository": {
