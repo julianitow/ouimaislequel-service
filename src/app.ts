@@ -144,8 +144,21 @@ app.get('/list', (req, res) => {
     // tslint:disable-next-line: forin
     for (const index in fileContent) {
         const restaurantFile = fileContent[index];
+        const addrKeys = Object.keys(restaurantFile.restaurantAddress[0]);
+        let complAddr = "";
+
+        for (const i in addrKeys) {
+            if(addrKeys[i].indexOf('address') !== -1 && addrKeys[i].indexOf('Type') === -1) {
+                const addr = restaurantFile.restaurantAddress[0][addrKeys[i]];
+                complAddr += `${addr}`;
+                if (+i < addrKeys.length - 1 && addr.length > 1) { // TODO correct ',' at last index
+                    console.log(i);
+                    complAddr += ', ';
+                }
+            }
+        }
         const addr: Address = {
-            adress: restaurantFile.restaurantAddress[0].address1,
+            adress: complAddr,
             zipCode: restaurantFile.restaurantAddress[0].zipCode,
             city: restaurantFile.restaurantAddress[0].city,
             country: restaurantFile.restaurantAddress[0].country
