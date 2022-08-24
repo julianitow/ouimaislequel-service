@@ -8,6 +8,21 @@ const { JSDOM } = jsdom;
 const PORT = 3000;
 const filename = 'macdo-restaurants-paris.json';
 
+interface Address {
+    adress: String,
+    zipCode: String,
+    city: String,
+    country: String,
+}
+
+interface Restaurant {
+    name: String,
+    coordinates: Number[],
+    address: Address,
+    visited: boolean,
+    note: number,
+}
+
 const options: any = {
     method: 'GET',
     hostname: 'www.mcdonalds.fr',
@@ -76,6 +91,9 @@ async function fetchRestaurants(): Promise<void> {
                     const splitUrl = urls[index].split('/');
                     const restaurantId = splitUrl[splitUrl.length - 1];
                     console.log(`${index} => Fetching data restaurant id: ${restaurantId}`);
+                    if (Number(index) === 0) {
+                        fs.writeFileSync(filename, '[');
+                    }
                     const restReq = https.request(
                             `https://ws.mcdonalds.fr/api/restaurant/${restaurantId}
                             ?responseGroups=RG.RESTAURANT.ADDRESSES
@@ -94,8 +112,13 @@ async function fetchRestaurants(): Promise<void> {
                                 restaurants.push(restaurant);
                                 console.log(`${index} => Writing data to file: ${filename}`);
                                 // console.log(restaurant);
-                                fs.appendFileSync(filename, `${JSON.stringify(restaurant, null, 4)},`);
+                                fs.appendFileSync(filename, `${JSON.stringify(restaurant, null, 4)}`);
                                 console.log(`${index} => Request ended, restaurant ${restaurantId}: ${res.statusCode}`);
+                                if (Number(index) === urls.length - 1 ) {
+                                    fs.appendFileSync(filename, ']');
+                                } else {
+                                    fs.appendFileSync(filename, ',');
+                                }
                         });
 
                             response.on('error', (err) => {
@@ -117,13 +140,26 @@ async function fetchRestaurants(): Promise<void> {
 
 app.get('/list', (req, res) => {
     const fileContent = JSON.parse(fs.readFileSync(filename).toString());
-    const names = [];
+    const restaurants: Restaurant[] = [];
     // tslint:disable-next-line: forin
     for (const index in fileContent) {
-        const restaurant = fileContent[index];
-        names.push(restaurant.name);
+        const restaurantFile = fileContent[index];
+        const addr: Address = {
+            adress: restaurantFile.restaurantAddress[0].address1,
+            zipCode: restaurantFile.restaurantAddress[0].zipCode,
+            city: restaurantFile.restaurantAddress[0].city,
+            country: restaurantFile.restaurantAddress[0].country
+        }
+        const restaurant: Restaurant = {
+            name: restaurantFile.name,
+            coordinates: [restaurantFile.coordinates.latitude, restaurantFile.coordinates.longitude],
+            address: addr,
+            visited: false,
+            note: 0
+        }
+        restaurants.push(restaurant);
     }
-    res.send(names);
+    res.send(restaurants);
 });
 
 // fetchRestaurants();
