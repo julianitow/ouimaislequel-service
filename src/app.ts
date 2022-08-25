@@ -2,48 +2,42 @@ import express from 'express';
 import fs from 'fs';
 import https from 'https';
 import jsdom from 'jsdom';
+import { MongoClient, ServerApiVersion } from 'mongodb';
+import IAddress from './Interfaces/IAddress';
+import IRestaurant from './Interfaces/IRestaurant';
+import IUser from './Interfaces/IUser';
 
-const app = express();
 const { JSDOM } = jsdom;
+const app = express();
+app.use(express.json());
+
 const PORT = 3000;
+const DB_PASSWORD = '0LmYkNxjm6X1BnKT';
+const DB_NAME = 'madonalds';
+const DB_RESTAURANTS_COLLECTION = 'restaurants';
 const filename = 'macdo-restaurants-paris.json';
 
-interface Address {
-    adress: String,
-    zipCode: String,
-    city: String,
-    country: String,
-}
-
-interface Restaurant {
-    name: String,
-    coordinates: Number[],
-    address: Address,
-    visited: boolean,
-    note: number,
-}
-
 const options: any = {
-    method: 'GET',
-    hostname: 'www.mcdonalds.fr',
-    path: '/liste-restaurants-mcdonalds-france',
     headers: {
-      'Upgrade-Insecure-Requests': '1',
-      // tslint:disable-next-line: object-literal-sort-keys
-      'Sec-GPC': '1',
-      'Sec-Fetch-User': '?1',
-      'If-None-Match': '"e911b-vlh/iD6E8+d1RCxEWKoo0y0lK/8"',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'cross-site',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:103.0) Gecko/20100101 Firefox/103.0',
-      'Referer': 'https://duckduckgo.com',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'Accept-Encoding': 'deflate, br',
-      'TE': 'trailers',
-      'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
-    },
+        'Upgrade-Insecure-Requests': '1',
+        // tslint:disable-next-line: object-literal-sort-keys
+        'Sec-GPC': '1',
+        'Sec-Fetch-User': '?1',
+        'If-None-Match': '"e911b-vlh/iD6E8+d1RCxEWKoo0y0lK/8"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'cross-site',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:103.0) Gecko/20100101 Firefox/103.0',
+        'Referer': 'https://duckduckgo.com',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Encoding': 'deflate, br',
+        'TE': 'trailers',
+        'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
+      },
+    hostname: 'www.mcdonalds.fr',
     maxRedirects: 20,
+    method: 'GET',
+    path: '/liste-restaurants-mcdonalds-france',
   };
 
 function sleep(millis) {
@@ -138,57 +132,154 @@ async function fetchRestaurants(): Promise<void> {
     req.end();
 }
 
-app.get('/list', (req, res) => {
+app.get('/list', (_, res) => {
+    fetchRestaurantsFromDb().then((restaurants) => {
+        res.send(restaurants);
+    });
+});
+
+app.get('/users', (_, res) => {
+    fetchUsersFromDb()
+    .then((users) => {
+        res.send(users);
+    })
+    .catch((err) => {
+        throw err;
+    });
+});
+
+app.post('/restaurant/:id', (req, res) => {
+    console.log(req.params.id);
+    console.log(req.body);
+    res.send(req.body);
+});
+
+function parseRestaurants(): IRestaurant[] {
     const fileContent = JSON.parse(fs.readFileSync(filename).toString());
-    const restaurants: Restaurant[] = [];
+    const restaurants: IRestaurant[] = [];
     // tslint:disable-next-line: forin
     for (const index in fileContent) {
         const restaurantFile = fileContent[index];
         const addrKeys = Object.keys(restaurantFile.restaurantAddress[0]);
-        let complAddr = "";
+        let complAddr = '';
 
         for (const i in addrKeys) {
-            if(addrKeys[i].indexOf('address') !== -1 && addrKeys[i].indexOf('Type') === -1) {
+            if (addrKeys[i].indexOf('address') !== -1 && addrKeys[i].indexOf('Type') === -1) {
                 const addr = restaurantFile.restaurantAddress[0][addrKeys[i]];
                 complAddr += `${addr}`;
                 if (+i < addrKeys.length - 1 && addr.length > 1) { // TODO correct ',' at last index
-                    console.log(i);
                     complAddr += ', ';
                 }
             }
         }
-        const addr: Address = {
+        const addr: IAddress = {
             adress: complAddr,
-            zipCode: restaurantFile.restaurantAddress[0].zipCode,
             city: restaurantFile.restaurantAddress[0].city,
-            country: restaurantFile.restaurantAddress[0].country
-        }
-        const restaurant: Restaurant = {
-            name: restaurantFile.name,
-            coordinates: [restaurantFile.coordinates.latitude, restaurantFile.coordinates.longitude],
+            country: restaurantFile.restaurantAddress[0].country,
+            zipCode: restaurantFile.restaurantAddress[0].zipCode,
+        };
+        const restaurant: IRestaurant = {
             address: addr,
+            coordinates: [restaurantFile.coordinates.latitude, restaurantFile.coordinates.longitude],
+            name: restaurantFile.name,
+            note: 0,
             visited: false,
-            note: 0
-        }
+        };
         restaurants.push(restaurant);
     }
-    res.send(restaurants);
-});
+    return restaurants;
+}
 
-// fetchRestaurants();
+function dbClient(): MongoClient {
+    const uri = `mongodb+srv://julianitow:${DB_PASSWORD}@cluster0.bxrmnii.mongodb.net/?retryWrites=true&w=majority` ;
+    const client = new MongoClient(uri, { serverApi: ServerApiVersion.v1 });
+    return client;
+}
+
+function fetchUsersFromDb(): Promise<IUser[]> {
+    return new Promise<IUser[]>((resolve, reject) => {
+        const client = dbClient();
+        client.connect((err) => {
+            if (err) { throw err; }
+            const db = client.db(DB_NAME);
+            const usersCollection = db.collection('users');
+            usersCollection.find({}).toArray().then((users) => {
+                resolve(users as any as IUser[]);
+            });
+        });
+    });
+}
+
+function fetchRestaurantsFromDb(): Promise<IRestaurant[]> {
+    return new Promise<IRestaurant[]>((resolve, reject) => {
+        const client = dbClient();
+        client.connect((err) => {
+            if ( err ) { throw err; }
+            const db = client.db(DB_NAME);
+            const collection = db.collection(DB_RESTAURANTS_COLLECTION);
+            collection.find({}).toArray().then((restaurants) => {
+                resolve(restaurants as any as  IRestaurant[]);
+            });
+        });
+    });
+}
+
+function updateUsersDatabase() {
+    const users = JSON.parse('[{"username" :"Noémie"}, {"username": "Julien"}]');
+    const client = dbClient();
+    client.connect((err) => {
+        if ( err ) { throw err; }
+        const db = client.db(DB_NAME);
+        const usersCollection = db.collection('users');
+        usersCollection.insertMany(users)
+        .then((res) => {
+            console.log(`'Inserted : ${res.insertedCount}`);
+        })
+        .catch((err) => { throw err; });
+    });
+}
+
+function updateRestaurantsDatabase() {
+    const restaurants = parseRestaurants();
+    const client = dbClient();
+    client.connect((err) => {
+        if ( err ) { throw err; }
+        const db = client.db(DB_NAME);
+        const restaurantsCollection = db.collection(DB_RESTAURANTS_COLLECTION);
+        restaurantsCollection.deleteMany({})
+        .then((res) => {
+            console.log(`Deleted ${res.deletedCount} elements`);
+            restaurantsCollection.insertMany(restaurants)
+            .then((res) => {
+                console.log(`Inserted ${res.insertedCount} elements`);
+                client.close();
+            })
+            .catch((err) => { throw  err; });
+        })
+        .catch((err) => {throw err; });
+    });
+}
 
 async function main(): Promise<number> {
     if (process.argv.length > 2) {
         const params = process.argv.filter((arg, index) => index > 1);
-        if (params.includes('update')) {
+        if (params.includes('--update-data')) {
             console.log('=======UPDATE RESTAURANTS LIST=======');
             await fetchRestaurants();
         }
 
-        if (params.includes('start')) {
+        if (params.includes('--start')) {
             app.listen(PORT, () => {
                 console.log(`Mcdo comm api listening on port ${PORT}`);
             });
+        }
+
+        if (params.includes('--update-restaurants-db')) {
+            updateRestaurantsDatabase();
+        }
+
+        if (params.includes('--update-users-db')) {
+            updateUsersDatabase();
         }
     }
     return 0;
