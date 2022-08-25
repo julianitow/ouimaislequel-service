@@ -173,7 +173,7 @@ function parseRestaurants(): IRestaurant[] {
             }
         }
         const addr: IAddress = {
-            adress: complAddr,
+            address: complAddr,
             city: restaurantFile.restaurantAddress[0].city,
             country: restaurantFile.restaurantAddress[0].country,
             zipCode: restaurantFile.restaurantAddress[0].zipCode,

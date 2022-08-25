@@ -1,5 +1,5 @@
 interface IAddress {
-    adress: string;
+    address: string;
     zipCode: string;
     city: string;
     country: string;
