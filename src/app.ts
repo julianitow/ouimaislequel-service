@@ -2,7 +2,8 @@ import express from 'express';
 import fs from 'fs';
 import https from 'https';
 import jsdom from 'jsdom';
-import { MongoClient, ServerApiVersion } from 'mongodb';
+import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
+import morgan from 'morgan';
 import IAddress from './Interfaces/IAddress';
 import IRestaurant from './Interfaces/IRestaurant';
 import IUser from './Interfaces/IUser';
@@ -10,6 +11,7 @@ import IUser from './Interfaces/IUser';
 const { JSDOM } = jsdom;
 const app = express();
 app.use(express.json());
+app.use(morgan('combined'));
 
 const PORT = 3000;
 const DB_PASSWORD = '0LmYkNxjm6X1BnKT';
@@ -148,10 +150,22 @@ app.get('/users', (_, res) => {
     });
 });
 
-app.post('/restaurant/:id', (req, res) => {
-    console.log(req.params.id);
-    console.log(req.body);
-    res.send(req.body);
+app.post('/restaurant/:id', async (req, res) => {
+    const restaurant = req.body;
+    restaurant._id = restaurant.id;
+    delete restaurant.id;
+    updateRestaurantDatabase(restaurant)
+    .then((updated) => {
+        if (!updated) {
+            res.status(404).send('Not foud');
+            return;
+        }
+        res.status(201).send('ok');
+    })
+    .catch((err) => {
+        console.error(err);
+        res.status(500).send('error');
+    });
 });
 
 function parseRestaurants(): IRestaurant[] {
@@ -179,6 +193,7 @@ function parseRestaurants(): IRestaurant[] {
             zipCode: restaurantFile.restaurantAddress[0].zipCode,
         };
         const restaurant: IRestaurant = {
+            _id: +index,
             address: addr,
             coordinates: [restaurantFile.coordinates.latitude, restaurantFile.coordinates.longitude],
             name: restaurantFile.name,
@@ -205,7 +220,8 @@ function fetchUsersFromDb(): Promise<IUser[]> {
             const usersCollection = db.collection('users');
             usersCollection.find({}).toArray().then((users) => {
                 resolve(users as any as IUser[]);
-            });
+            })
+            .finally(() => client.close());
         });
     });
 }
@@ -219,8 +235,27 @@ function fetchRestaurantsFromDb(): Promise<IRestaurant[]> {
             const collection = db.collection(DB_RESTAURANTS_COLLECTION);
             collection.find({}).toArray().then((restaurants) => {
                 resolve(restaurants as any as  IRestaurant[]);
-            });
+            })
+            .finally(() => client.close());
         });
+    });
+}
+
+function updateRestaurantDatabase(restaurant: IRestaurant): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
+        const client = dbClient();
+        client.connect(async (err) => {
+            if (err) { reject(err); }
+            const db = client.db(DB_NAME);
+            const id = restaurant._id;
+            delete restaurant._id;
+            const restaurantsCollection = db.collection(DB_RESTAURANTS_COLLECTION);
+            const filter = {_id: +id};
+            restaurantsCollection.updateOne(filter, { $set: restaurant}, (err, res) => {
+                if (err) { reject(err); }
+                resolve(res.acknowledged);
+            });
+         });
     });
 }
 

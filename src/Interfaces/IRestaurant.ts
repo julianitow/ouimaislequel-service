@@ -6,6 +6,7 @@ interface IRestaurant {
     coordinates: number[];
     address: IAddress;
     visited: boolean;
+    String?: Date;
     note: number;
 }
 
