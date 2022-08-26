@@ -13,7 +13,7 @@ const app = express();
 app.use(express.json());
 app.use(morgan('combined'));
 
-const PORT = 3000;
+const PORT = 53400;
 const DB_PASSWORD = '0LmYkNxjm6X1BnKT';
 const DB_NAME = 'madonalds';
 const DB_RESTAURANTS_COLLECTION = 'restaurants';
