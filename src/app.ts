@@ -154,6 +154,11 @@ app.post('/restaurant/:id', async (req, res) => {
     const restaurant = req.body;
     restaurant._id = restaurant.id;
     delete restaurant.id;
+    const date = new Date();
+    const day = date.getDate() < 10 ? `0${date.getDate()}` : date.getDate();
+    const month = date.getMonth() + 1 < 10 ? `0${date.getMonth() + 1}` : date.getMonth() + 1;
+    const visitedDate = `${day}/${month}/${date.getFullYear()}`;
+    restaurant.date = visitedDate;
     updateRestaurantDatabase(restaurant)
     .then((updated) => {
         if (!updated) {
