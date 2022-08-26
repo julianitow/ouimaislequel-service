@@ -25,11 +25,6 @@ This project contains only the steps I do everytime I want to start a new projec
 How to use ?
 ============
 1. Install packages: ``` npm install ```    
-2. Start the app:    ``` npm start ```  
+2. Start the app:    ```npm run build && node --trace-warnings dist/app.js --start```  
 
 Done!
-
-Development
-===========
-> ``` npm run start:watch```  
-Will start the app and will watch for changes
